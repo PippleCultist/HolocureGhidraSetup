@@ -7,6 +7,7 @@
 
 import java.io.*;
 import java.util.*;
+import java.util.regex.*;
 import ghidra.app.script.GhidraScript;
 import ghidra.program.model.mem.*;
 import ghidra.program.model.lang.*;
@@ -93,30 +94,49 @@ public class HolocureSetup extends GhidraScript {
 			count++;
 		}
 
+//		out.println(currentProgram.getMinAddress().getOffset() + " " + currentProgram.getMaxAddress().getOffset());
+		Pattern identifierPattern = Pattern.compile("[a-zA-Z_0-9]*");
 		SymbolIterator symbolIter = currentProgram.getSymbolTable().getAllSymbols(true);
 		int symbolCount = 0;
 		while (symbolIter.hasNext() && !monitor.isCancelled()) {
 			Symbol s = symbolIter.next();
 			Address startAddr = s.getAddress();
-			if (startAddr.getOffset() > 8)
+			long startAddrOffset = startAddr.getOffset();
+			if (startAddrOffset >= currentProgram.getMinAddress().getOffset() && startAddrOffset < currentProgram.getMaxAddress().getOffset())
 			{
-				Data curData = getDataAt(startAddr.subtract(8));
-				if (curData != null && curData.isPointer())
+				try
 				{
-					Data ptrData = getDataAt(startAddr.getAddress(curData.getValue().toString()));
-					if (ptrData != null && ptrData.hasStringValue())
+					byte[] byteArr = getBytes(startAddr, 4);
+					if (byteArr[0] == (byte)0xFF && byteArr[1] == (byte)0xFF && byteArr[2] == (byte)0xFF && byteArr[3] == (byte)0xFF)
 					{
-						String name = (String)ptrData.getValue();
-						if (!name.contains(" "))
+						Data curData = getDataAt(startAddr.subtract(8));
+						if (curData != null && curData.isPointer())
 						{
-							s.setName(name, SourceType.USER_DEFINED);
+							Address ptrAddress = startAddr.getAddress(curData.getValue().toString());
+							Data ptrData = getDataAt(ptrAddress);
+							boolean isPtrDataNull = ptrData == null;
+							if (isPtrDataNull)
+							{
+								ptrData = createAsciiString(ptrAddress);
+							}
+							if (ptrData.hasStringValue())
+							{
+								String name = (String)ptrData.getValue();
+								if (identifierPattern.matcher(name).matches())
+								{
+									s.setName(name, SourceType.USER_DEFINED);
+								}
+							}
 						}
+						symbolCount++;
 					}
 				}
-				symbolCount++;
+				catch (MemoryAccessException e)
+				{
+
+				}
 			}
 		}
-//		out.println(symbolCount);
 //		out.close();
     }
 
