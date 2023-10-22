@@ -32,6 +32,37 @@ public class HolocureSetup extends GhidraScript {
 		while (iter.hasNext() && !monitor.isCancelled()) {
 			Function f = iter.next();
 			Instruction curInstruction = getFirstInstruction(f);
+			if (f.getName().equals("InitJavaScriptFunctions"))
+			{
+				Address prevAddress = null;
+				for (int i = 0; i < 100; i++)
+				{
+					byte[] parsedBytesArr = curInstruction.getParsedBytes();
+					if (parsedBytesArr[0] == (byte)0x48 && parsedBytesArr[1] == (byte)0x8d && parsedBytesArr.length == 7)
+					{
+						Address curAddress = curInstruction.getAddress();
+						int offset = (int)((parsedBytesArr[3] & 0xFFL) | ((parsedBytesArr[4] & 0xFFL) << 8) | ((parsedBytesArr[5] & 0xFFL) << 16) | ((parsedBytesArr[6] & 0xFFL) << 24));
+						Address newAddress = curAddress.add(offset + 7);
+						Data curData = getDataAt(newAddress);
+						if (curData != null && curData.hasStringValue())
+						{
+							String name = (String)curData.getValue();
+							if (name.equals("@@Global@@"))
+							{
+								Instruction setGlobalInstruction = getInstructionAt(prevAddress.add(7));
+								parsedBytesArr = setGlobalInstruction.getParsedBytes();
+								int globalOffset = (int)((parsedBytesArr[3] & 0xFFL) | ((parsedBytesArr[4] & 0xFFL) << 8) | ((parsedBytesArr[5] & 0xFFL) << 16) | ((parsedBytesArr[6] & 0xFFL) << 24));
+								Symbol globalSymbol = getSymbolAt(prevAddress.add(7 + globalOffset + 7));
+								globalSymbol.setName("global", SourceType.USER_DEFINED);
+							}
+						}
+						prevAddress = newAddress;
+					}
+					curInstruction = curInstruction.getNext();
+				}
+				
+				continue;
+			}
 			for (int i = 0; i < 40; i++)
 			{
 				byte[] parsedBytesArr = curInstruction.getParsedBytes();
@@ -42,7 +73,7 @@ public class HolocureSetup extends GhidraScript {
 					if (nextParsedBytesArr[0] == (byte)0x48 && nextParsedBytesArr[1] == (byte)0x89)
 					{
 						Address curAddress = curInstruction.getAddress();
-						long offset = (parsedBytesArr[3] & 0xFFL) + ((parsedBytesArr[4] & 0xFFL) << 8) + ((parsedBytesArr[5] & 0xFFL) << 16) + ((parsedBytesArr[6] & 0xFFL) << 24);
+						int offset = (int)((parsedBytesArr[3] & 0xFFL) | ((parsedBytesArr[4] & 0xFFL) << 8) | ((parsedBytesArr[5] & 0xFFL) << 16) | ((parsedBytesArr[6] & 0xFFL) << 24));
 						Data curData = getDataAt(curAddress.getNewAddress(offset + curAddress.getOffset()));
 						if (curData != null)
 						{
