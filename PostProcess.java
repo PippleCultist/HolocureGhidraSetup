@@ -108,6 +108,36 @@ public class PostProcess
 			Matcher removeVarDeclareMatcher = removeVarDeclarePattern.matcher(result);
 			result = removeVarDeclareMatcher.replaceAll("");
 		}
+		Pattern localVarPattern = Pattern.compile("(undefined|uint|int|longlong|char)\\d* \\**\\w+( \\[\\d+\\])?;");
+		Matcher localVarMatcher = localVarPattern.matcher(result);
+		while (localVarMatcher.find())
+		{
+			String match = localVarMatcher.group();
+			StringTokenizer st = new StringTokenizer(match, " *;");
+			st.nextToken();
+			String varName = st.nextToken();
+			Pattern localVarNamePattern = Pattern.compile(varName);
+			Matcher localVarNameMatcher = localVarNamePattern.matcher(result);
+			int localVarNameCount = 0;
+			while (localVarNameMatcher.find())
+			{
+				localVarNameCount++;
+			}
+			// Could include function calls which I'm not sure if that's safe or not
+			// Pattern localVarNameAssignmentPattern = Pattern.compile(varName + " = [\\&\\*\\+-/\\(\\)\\w\\d\\s]*;");
+			// Only include constants and 1-1 variable assignments for now
+			Pattern localVarNameAssignmentPattern = Pattern.compile(varName + " = \\w+;");
+			Matcher localVarNameAssignmentMatcher = localVarNameAssignmentPattern.matcher(result);
+			int localVarNameAssignmentCount = 0;
+			while (localVarNameAssignmentMatcher.find())
+			{
+				localVarNameAssignmentCount++;
+			}
+			if (localVarNameAssignmentCount + 1 == localVarNameCount)
+			{
+				result = result.replaceAll(".*" + varName + ".*?;\n", "");
+			}
+		}
 		return result;
 	}
 }
